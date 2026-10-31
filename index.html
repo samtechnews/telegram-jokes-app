@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>مراجعة النكت - سام تك</title>
+    <!-- مكتبة Telegram Web App الرسمية -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body { font-family: Tahoma, sans-serif; background: #f4f4f9; padding: 15px; margin: 0; }
+        h2 { text-align: center; color: #333; }
+        .joke-card { background: #fff; padding: 15px; margin-bottom: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .options { margin-top: 10px; display: flex; gap: 15px; }
+        button { background: #0088cc; color: white; border: none; padding: 12px 20px; font-size: 16px; border-radius: 6px; cursor: pointer; width: 100%; margin-top: 20px; }
+        button:hover { background: #006699; }
+    </style>
+</head>
+<body>
+
+    <h2>📋 قائمة مراجعة النكت</h2>
+    <form id="jokesForm">
+        <div id="jokesContainer">جاري تحميل النكت...</div>
+        <button type="button" onclick="submitData()">إرسال التحديثات إلى النظام</button>
+    </form>
+
+    <script>
+        let tg = window.Telegram.WebApp;
+        tg.expand(); // توسيع النافذة لتملأ شاشة تلجرام
+
+        // استخراج النكت المرسلة عبر الرابط (Query Parameters)
+        const urlParams = new URLSearchParams(window.location.search);
+        const jokesDataJson = urlParams.get('data');
+        let jokesList = [];
+
+        try {
+            jokesList = JSON.parse(decodeURIComponent(jokesDataJson));
+        } catch(e) {
+            document.getElementById('jokesContainer').innerHTML = '<p>خطأ في تحميل البيانات.</p>';
+        }
+
+        const container = document.getElementById('jokesContainer');
+        if (jokesList && jokesList.length > 0) {
+            let htmlContent = '';
+            jokesList.forEach((joke, index) => {
+                htmlContent += `
+                    <div class="joke-card">
+                        <p><strong>[#${joke.row_number}]</strong> ${joke.joke}</p>
+                        <div class="options">
+                            <label><input type="radio" name="status_${joke.row_number}" value="READY" checked> موافق (READY)</label>
+                            <label><input type="radio" name="status_${joke.row_number}" value="NOT_READY"> غير موافق (NOT_READY)</label>
+                        </div>
+                    </div>
+                `;
+            });
+            container.innerHTML = htmlContent;
+        } else {
+            container.innerHTML = '<p>لا توجد نكت للمراجعة حالياً.</p>';
+        }
+
+        function submitData() {
+            let results = [];
+            jokesList.forEach((joke) => {
+                let radios = document.getElementsByName(`status_${joke.row_number}`);
+                let selectedVal = 'READY';
+                for (let r of radios) {
+                    if (r.checked) { selectedVal = r.value; break; }
+                }
+                results.push({
+                    row_number: joke.row_number,
+                    publishing_status: selectedVal
+                });
+            });
+
+            // إرسال البيانات عبر Fetch API إلى Webhook الخاص بـ n8n
+            fetch('https://n8n.samtechnews.online/webhook/save-jokes-review', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(results)
+            })
+            .then(response => {
+                tg.showAlert("تم إرسال التحديثات بنجاح وتحديث الشيت!");
+                tg.close(); // إغلاق نافذة الـ Web App تلقائياً
+            })
+            .catch(error => {
+                alert("حدث خطأ أثناء الإرسال: " + error);
+            });
+        }
+    </script>
+</body>
+</html>
