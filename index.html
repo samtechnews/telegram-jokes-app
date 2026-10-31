@@ -2,58 +2,69 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>مراجعة النكت - سام تك</title>
-    <!-- مكتبة Telegram Web App الرسمية -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        body { font-family: Tahoma, sans-serif; background: #f4f4f9; padding: 15px; margin: 0; }
-        h2 { text-align: center; color: #333; }
-        .joke-card { background: #fff; padding: 15px; margin-bottom: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .options { margin-top: 10px; display: flex; gap: 15px; }
-        button { background: #0088cc; color: white; border: none; padding: 12px 20px; font-size: 16px; border-radius: 6px; cursor: pointer; width: 100%; margin-top: 20px; }
-        button:hover { background: #006699; }
+        body { font-family: Tahoma, sans-serif; background: #0f172a; color: #f8fafc; padding: 15px; margin: 0; }
+        h2 { text-align: center; color: #38bdf8; margin-bottom: 20px; }
+        .joke-card { background: #1e293b; border: 1px solid #334155; padding: 15px; margin-bottom: 15px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
+        .joke-text { font-size: 16px; margin-bottom: 12px; line-height: 1.5; color: #e2e8f0; }
+        .options { display: flex; gap: 20px; border-top: 1px solid #334155; pt: 10px; margin-top: 10px; padding-top: 10px; }
+        label { cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 5px; }
+        button { background: #FF4D00; color: white; border: none; padding: 14px 20px; font-size: 16px; font-weight: bold; border-radius: 8px; cursor: pointer; width: 100%; margin-top: 20px; transition: background 0.2s; }
+        button:hover { background: #e04300; }
+        .loading { text-align: center; font-size: 18px; color: #94a3b8; margin-top: 50px; }
     </style>
 </head>
 <body>
 
-    <h2>📋 قائمة مراجعة النكت</h2>
+    <h2>📋 مراجعة دفعة النكت</h2>
     <form id="jokesForm">
-        <div id="jokesContainer">جاري تحميل النكت...</div>
-        <button type="button" onclick="submitData()">إرسال التحديثات إلى النظام</button>
+        <div id="jokesContainer" class="loading">جاري تحميل النكت...</div>
+        <button type="button" id="submitBtn" style="display:none;" onclick="submitData()">إرسال التحديثات وتحديث الشيت</button>
     </form>
 
     <script>
         let tg = window.Telegram.WebApp;
-        tg.expand(); // توسيع النافذة لتملأ شاشة تلجرام
+        tg.expand();
 
-        // استخراج النكت المرسلة عبر الرابط (Query Parameters)
+        // قراءة البيانات المرسلة عبر الرابط من n8n
         const urlParams = new URLSearchParams(window.location.search);
-        const jokesDataJson = urlParams.get('data');
+        const dataParam = urlParams.get('data');
         let jokesList = [];
 
         try {
-            jokesList = JSON.parse(decodeURIComponent(jokesDataJson));
+            if (dataParam) {
+                jokesList = JSON.parse(decodeURIComponent(dataParam));
+            }
         } catch(e) {
-            document.getElementById('jokesContainer').innerHTML = '<p>خطأ في تحميل البيانات.</p>';
+            console.error("Error parsing JSON:", e);
         }
 
         const container = document.getElementById('jokesContainer');
+        const submitBtn = document.getElementById('submitBtn');
+
         if (jokesList && jokesList.length > 0) {
             let htmlContent = '';
             jokesList.forEach((joke, index) => {
+                let jokeText = joke.joke || joke['joke '] || 'نص غير متوفر';
+                let rowNum = joke.row_number;
+
                 htmlContent += `
                     <div class="joke-card">
-                        <p><strong>[#${joke.row_number}]</strong> ${joke.joke}</p>
+                        <div class="joke-text"><strong>[#${index + 1}]</strong> ${jokeText}</div>
                         <div class="options">
-                            <label><input type="radio" name="status_${joke.row_number}" value="READY" checked> موافق (READY)</label>
-                            <label><input type="radio" name="status_${joke.row_number}" value="NOT_READY"> غير موافق (NOT_READY)</label>
+                            <label><input type="radio" name="status_${rowNum}" value="READY" checked> ✅ موافق (READY)</label>
+                            <label><input type="radio" name="status_${rowNum}" value="NOT_READY"> ❌ غير موافق</label>
                         </div>
                     </div>
                 `;
             });
             container.innerHTML = htmlContent;
+            submitBtn.style.display = 'block';
         } else {
-            container.innerHTML = '<p>لا توجد نكت للمراجعة حالياً.</p>';
+            container.innerHTML = '<p style="text-align:center; color:#ef4444;">لا توجد نكت متاحة في هذه الدفعة.</p>';
         }
 
         function submitData() {
@@ -70,18 +81,23 @@
                 });
             });
 
-            // إرسال البيانات عبر Fetch API إلى Webhook الخاص بـ n8n
+            submitBtn.disabled = true;
+            submitBtn.innerText = "جاري الإرسال...";
+
+            // ضع هنا رابط الـ Webhook الخاص بسير العمل الثاني في n8n (الذي يحدث قوقل شيت)
             fetch('https://n8n.samtechnews.online/webhook/save-jokes-review', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(results)
             })
             .then(response => {
-                tg.showAlert("تم إرسال التحديثات بنجاح وتحديث الشيت!");
-                tg.close(); // إغلاق نافذة الـ Web App تلقائياً
+                tg.showAlert("تم إرسال التحديثات بنجاح وتحديث ملف الشيت!");
+                tg.close();
             })
             .catch(error => {
                 alert("حدث خطأ أثناء الإرسال: " + error);
+                submitBtn.disabled = false;
+                submitBtn.innerText = "إرسال التحديثات وتحديث الشيت";
             });
         }
     </script>
