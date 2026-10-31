@@ -21,7 +21,7 @@
 
     <h2>📋 مراجعة دفعة النكت</h2>
     <form id="jokesForm">
-        <div id="jokesContainer" class="loading">جاري تحميل النكت من السيرفر السحابي...</div>
+        <div id="jokesContainer" class="loading">جاري تحميل النكت المحددة...</div>
         <button type="button" id="submitBtn" style="display:none;" onclick="submitData()">إرسال التحديثات وتحديث الشيت</button>
     </form>
 
@@ -29,13 +29,19 @@
         let tg = window.Telegram.WebApp;
         tg.expand();
 
+        const urlParams = new URLSearchParams(window.location.search);
+        const rowsParam = urlParams.get('rows');
         let jokesList = [];
 
-        // دالة لجلب النكت مباشرة من Google Apps Script Web App
         async function fetchJokes() {
+            if (!rowsParam) {
+                document.getElementById('jokesContainer').innerHTML = '<p style="text-align:center; color:#ef4444;">لا توجد صفوف محددة في الرابط.</p>';
+                return;
+            }
+
             try {
-                // استبدل الرابط أدناه برابط الـ Web App الخاص بك الذي نسخته من قوقل
-                const response = await fetch('https://script.google.com/macros/s/AKfycbw7g95mrTyuwwqxQ6stRCFn_ThRwBkClh2__nn2r8iQbDYdqkLJKoYrcrPB0A-yrxKV1A/exec');
+                // استبدل الرابط أدناه برابط الـ Web App الخاص بك من قوقل
+                const response = await fetch(`https://script.google.com/macros/s/AKfycbw7g95mrTyuwwqxQ6stRCFn_ThRwBkClh2__nn2r8iQbDYdqkLJKoYrcrPB0A-yrxKV1A/exec?rows=${rowsParam}`);
                 jokesList = await response.json();
 
                 if (jokesList && jokesList.length > 0) {
@@ -57,7 +63,7 @@
                     document.getElementById('jokesContainer').innerHTML = htmlContent;
                     document.getElementById('submitBtn').style.display = 'block';
                 } else {
-                    document.getElementById('jokesContainer').innerHTML = '<p style="text-align:center; color:#ef4444;">لا توجد نكت متاحة حالياً في الشيت.</p>';
+                    document.getElementById('jokesContainer').innerHTML = '<p style="text-align:center; color:#ef4444;">لا توجد نكت متاحة لهذه الصفوف.</p>';
                 }
             } catch (error) {
                 console.error("Error:", error);
@@ -65,7 +71,6 @@
             }
         }
 
-        // تنفيذ دالة الجلب فور فتح الصفحة
         fetchJokes();
 
         function submitData() {
@@ -84,7 +89,7 @@
 
             let submitBtn = document.getElementById('submitBtn');
             submitBtn.disabled = true;
-            submitBtn.innerText = "جاري الإرسال...";
+            submitBtn.innerText = "جاري الإرسال وتحديث الشيت...";
 
             // إرسال النتائج إلى Webhook الخاص بـ n8n لتحديث الشيت
             fetch('https://n8n.samtechnews.online/webhook/save-jokes-review', {
@@ -93,7 +98,7 @@
                 body: JSON.stringify(results)
             })
             .then(response => {
-                tg.showAlert("تم إرسال التحديثات بنجاح وتحديث ملف الشيت!");
+                tg.showAlert("تم تحديث ملف Google Sheets بنجاح!");
                 tg.close();
             })
             .catch(error => {
