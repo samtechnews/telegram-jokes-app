@@ -9,8 +9,8 @@
         body { font-family: Tahoma, sans-serif; background: #0f172a; color: #f8fafc; padding: 15px; margin: 0; }
         h2 { text-align: center; color: #38bdf8; margin-bottom: 20px; }
         .joke-card { background: #1e293b; border: 1px solid #334155; padding: 15px; margin-bottom: 15px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
-        .joke-text { font-size: 16px; margin-bottom: 12px; line-height: 1.5; color: #e2e8f0; }
-        .options { display: flex; gap: 20px; border-top: 1px solid #334155; pt: 10px; margin-top: 10px; padding-top: 10px; }
+        .joke-text { font-size: 16px; margin-bottom: 12px; line-height: 1.5; color: #e2e8f0; white-space: pre-wrap; }
+        .options { display: flex; gap: 20px; border-top: 1px solid #334155; margin-top: 10px; padding-top: 10px; }
         label { cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 5px; }
         button { background: #FF4D00; color: white; border: none; padding: 14px 20px; font-size: 16px; font-weight: bold; border-radius: 8px; cursor: pointer; width: 100%; margin-top: 20px; transition: background 0.2s; }
         button:hover { background: #e04300; }
@@ -21,7 +21,7 @@
 
     <h2>📋 مراجعة دفعة النكت</h2>
     <form id="jokesForm">
-        <div id="jokesContainer" class="loading">جاري تحميل النكت...</div>
+        <div id="jokesContainer" class="loading">جاري تحميل النكت من السيرفر السحابي...</div>
         <button type="button" id="submitBtn" style="display:none;" onclick="submitData()">إرسال التحديثات وتحديث الشيت</button>
     </form>
 
@@ -29,43 +29,44 @@
         let tg = window.Telegram.WebApp;
         tg.expand();
 
-        // قراءة البيانات المرسلة عبر الرابط من n8n
-        const urlParams = new URLSearchParams(window.location.search);
-        const dataParam = urlParams.get('data');
         let jokesList = [];
 
-        try {
-            if (dataParam) {
-                jokesList = JSON.parse(decodeURIComponent(dataParam));
+        // دالة لجلب النكت مباشرة من Google Apps Script Web App
+        async function fetchJokes() {
+            try {
+                // استبدل الرابط أدناه برابط الـ Web App الخاص بك الذي نسخته من قوقل
+                const response = await fetch('https://script.google.com/macros/s/AKfycbw7g95mrTyuwwqxQ6stRCFn_ThRwBkClh2__nn2r8iQbDYdqkLJKoYrcrPB0A-yrxKV1A/exec');
+                jokesList = await response.json();
+
+                if (jokesList && jokesList.length > 0) {
+                    let htmlContent = '';
+                    jokesList.forEach((joke, index) => {
+                        let jokeText = joke.joke || 'نص غير متوفر';
+                        let rowNum = joke.row_number;
+
+                        htmlContent += `
+                            <div class="joke-card">
+                                <div class="joke-text"><strong>[#${index + 1}]</strong> ${jokeText}</div>
+                                <div class="options">
+                                    <label><input type="radio" name="status_${rowNum}" value="READY" checked> ✅ موافق (READY)</label>
+                                    <label><input type="radio" name="status_${rowNum}" value="NOT_READY"> ❌ غير موافق</label>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    document.getElementById('jokesContainer').innerHTML = htmlContent;
+                    document.getElementById('submitBtn').style.display = 'block';
+                } else {
+                    document.getElementById('jokesContainer').innerHTML = '<p style="text-align:center; color:#ef4444;">لا توجد نكت متاحة حالياً في الشيت.</p>';
+                }
+            } catch (error) {
+                console.error("Error:", error);
+                document.getElementById('jokesContainer').innerHTML = '<p style="text-align:center; color:#ef4444;">فشل في جلب البيانات من السيرفر السحابي.</p>';
             }
-        } catch(e) {
-            console.error("Error parsing JSON:", e);
         }
 
-        const container = document.getElementById('jokesContainer');
-        const submitBtn = document.getElementById('submitBtn');
-
-        if (jokesList && jokesList.length > 0) {
-            let htmlContent = '';
-            jokesList.forEach((joke, index) => {
-                let jokeText = joke.joke || joke['joke '] || 'نص غير متوفر';
-                let rowNum = joke.row_number;
-
-                htmlContent += `
-                    <div class="joke-card">
-                        <div class="joke-text"><strong>[#${index + 1}]</strong> ${jokeText}</div>
-                        <div class="options">
-                            <label><input type="radio" name="status_${rowNum}" value="READY" checked> ✅ موافق (READY)</label>
-                            <label><input type="radio" name="status_${rowNum}" value="NOT_READY"> ❌ غير موافق</label>
-                        </div>
-                    </div>
-                `;
-            });
-            container.innerHTML = htmlContent;
-            submitBtn.style.display = 'block';
-        } else {
-            container.innerHTML = '<p style="text-align:center; color:#ef4444;">لا توجد نكت متاحة في هذه الدفعة.</p>';
-        }
+        // تنفيذ دالة الجلب فور فتح الصفحة
+        fetchJokes();
 
         function submitData() {
             let results = [];
@@ -81,10 +82,11 @@
                 });
             });
 
+            let submitBtn = document.getElementById('submitBtn');
             submitBtn.disabled = true;
             submitBtn.innerText = "جاري الإرسال...";
 
-            // ضع هنا رابط الـ Webhook الخاص بسير العمل الثاني في n8n (الذي يحدث قوقل شيت)
+            // إرسال النتائج إلى Webhook الخاص بـ n8n لتحديث الشيت
             fetch('https://n8n.samtechnews.online/webhook/save-jokes-review', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
