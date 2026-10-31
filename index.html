@@ -40,9 +40,11 @@
             }
 
             try {
-                // الاتصال المباشر بـ n8n Webhook لجلب النكت
                 const response = await fetch(`https://n8n.samtechnews.online/webhook/get-jokes?rows=${rowsParam}`);
-                jokesList = await response.json();
+                let resultData = await response.json();
+
+                // استخراج المصفوفة سواء كانت مرسلة مباشرة أو داخل مفتاح data
+                jokesList = Array.isArray(resultData) ? resultData : (resultData.data || []);
 
                 if (jokesList && jokesList.length > 0) {
                     let htmlContent = '';
